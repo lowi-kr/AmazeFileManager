@@ -216,6 +216,10 @@ dependencies {
     //OkHttp
     implementation libs.okhttp
 
+    //Media3 ExoPlayer: built-in video player
+    implementation libs.media3.exoplayer
+    implementation libs.media3.ui
+
     implementation libs.bcpkix.jdk18on
     implementation libs.bcprov.jdk18on
 
