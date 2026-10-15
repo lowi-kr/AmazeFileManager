@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="video_open_failed">Cannot play this video</string>
+    <string name="pdf_open_failed">Cannot open this PDF</string>
+    <string name="pdf_password_protected">Password-protected PDFs are not supported yet</string>
+</resources>
