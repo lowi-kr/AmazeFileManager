@@ -199,6 +199,36 @@
 
         </activity>
 
+        <activity
+            android:exported="true"
+            android:label="@string/video_player"
+            android:name=".ui.activities.VideoPlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:theme="@style/appCompatBlack">
+            <intent-filter
+                tools:ignore="AppLinkUrlError"
+                android:label="@string/video_player">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:exported="true"
+            android:label="@string/pdf_viewer"
+            android:name=".ui.activities.PdfViewerActivity"
+            android:configChanges="uiMode"
+            android:theme="@style/appCompatBlack">
+            <intent-filter
+                tools:ignore="AppLinkUrlError"
+                android:label="@string/pdf_viewer">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
         <activity android:name=".ui.activities.AboutActivity"
             android:theme="@style/aboutBlack"
             android:configChanges="uiMode"
@@ -231,14 +261,6 @@
                 <category android:name="android.intent.category.OPENABLE" />
             </intent-filter>
             <intent-filter
-                android:label="@string/video_player"
-                tools:ignore="AppLinkUrlError">
-                <action android:name="android.intent.action.VIEW" />
-                <data android:mimeType="video/*" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.OPENABLE" />
-            </intent-filter>
-            <intent-filter
                 android:label="@string/image_viewer"
                 tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
@@ -251,21 +273,6 @@
                 tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.OPENABLE" />
-            </intent-filter>
-            <intent-filter
-                android:label="@string/pdf_viewer"
-                tools:ignore="AppLinkUrlError">
-                <action android:name="android.intent.action.VIEW" />
-                <data android:mimeType="application/pdf" />
-                <data android:mimeType="application/vnd.ms-xpsdocument" />
-                <data android:mimeType="application/oxps" />
-                <data android:mimeType="application/vnd.comicbook+zip" />
-                <data android:mimeType="application/x-cbz" />
-                <data android:mimeType="application/epub+zip" />
-                <data android:mimeType="application/x-fictionbook" />
-                <data android:mimeType="application/x-mobipocket-ebook" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.OPENABLE" />
             </intent-filter>
