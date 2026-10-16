@@ -26,6 +26,7 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
+import android.util.LruCache
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.Toast
@@ -33,6 +34,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.amaze.filemanager.R
+import com.amaze.filemanager.ui.views.ZoomRecyclerView
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ExecutorService
@@ -42,8 +44,9 @@ import java.util.concurrent.RejectedExecutionException
 /**
  * Minimal built-in PDF viewer based on the platform [PdfRenderer].
  *
- * Pages are fitted to the screen width and scroll vertically. Password protected PDFs, zooming and
- * text search are not supported.
+ * Pages are fitted to the screen width and scroll vertically. Pinch or double tap to zoom; pages
+ * are re-rendered at 2x resolution once zoomed in so text stays readable. Password protected PDFs
+ * and text search are not supported.
  */
 class PdfViewerActivity : AppCompatActivity() {
     private val log: Logger = LoggerFactory.getLogger(PdfViewerActivity::class.java)
@@ -54,7 +57,19 @@ class PdfViewerActivity : AppCompatActivity() {
     private var descriptor: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private var pagesView: RecyclerView? = null
+    private var pagesView: ZoomRecyclerView? = null
+
+    // Rendered pages, keyed by page index and render scale. Sized by bytes, not entries.
+    private val pageCache =
+        object : LruCache<String, Bitmap>(
+            (Runtime.getRuntime().maxMemory() / CACHE_FRACTION).coerceAtMost(Int.MAX_VALUE.toLong())
+                .toInt(),
+        ) {
+            override fun sizeOf(
+                key: String,
+                value: Bitmap,
+            ): Int = value.byteCount
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,12 +84,18 @@ class PdfViewerActivity : AppCompatActivity() {
 
         val layoutManager = LinearLayoutManager(this)
         val recycler =
-            RecyclerView(this).apply {
+            ZoomRecyclerView(this).apply {
                 setBackgroundColor(Color.DKGRAY)
                 this.layoutManager = layoutManager
+                // Rendered bitmaps can be big, do not keep detached page views around
+                setItemViewCacheSize(0)
             }
         pagesView = recycler
-        recycler.adapter = PageAdapter(recycler, pageCount)
+        val adapter = PageAdapter(recycler, pageCount)
+        recycler.adapter = adapter
+        recycler.onZoomSettled = { zoom ->
+            adapter.updateRenderScale(if (zoom > SHARP_RENDER_ZOOM) 2 else 1)
+        }
         setContentView(recycler)
 
         savedInstanceState?.getInt(KEY_PAGE, 0)?.let {
@@ -107,6 +128,7 @@ class PdfViewerActivity : AppCompatActivity() {
             }
             descriptor = null
         }
+        pageCache.evictAll()
         super.onDestroy()
     }
 
@@ -144,13 +166,22 @@ class PdfViewerActivity : AppCompatActivity() {
         }
     }
 
-    /** Renders one page scaled to targetWidth. Runs on the render thread. */
+    private fun cacheKey(
+        index: Int,
+        scale: Int,
+    ): String = "$index@$scale"
+
+    /**
+     * Renders one page at baseWidth * scale pixels wide and caches it. Runs on the render thread.
+     */
     private fun renderPage(
         index: Int,
-        targetWidth: Int,
+        scale: Int,
+        baseWidth: Int,
     ): Bitmap? =
         synchronized(renderLock) {
             val pdfRenderer = renderer ?: return null
+            val targetWidth = (baseWidth * scale).coerceAtMost(MAX_BITMAP_WIDTH)
             try {
                 val page = pdfRenderer.openPage(index)
                 try {
@@ -160,6 +191,7 @@ class PdfViewerActivity : AppCompatActivity() {
                     // PdfRenderer does not paint a background, transparent pages need white
                     bitmap.eraseColor(Color.WHITE)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    pageCache.put(cacheKey(index, scale), bitmap)
                     bitmap
                 } finally {
                     page.close()
@@ -184,6 +216,15 @@ class PdfViewerActivity : AppCompatActivity() {
 
         // Height reserved for a page while it is still rendering, roughly A4 portrait
         private val placeholderHeight = (screenWidth * PLACEHOLDER_ASPECT).toInt()
+
+        // 1 = fit to width, 2 = double resolution, used while zoomed in. UI thread only.
+        private var renderScale = 1
+
+        fun updateRenderScale(newScale: Int) {
+            if (newScale == renderScale) return
+            renderScale = newScale
+            notifyDataSetChanged()
+        }
 
         override fun getItemCount(): Int = pageCount
 
@@ -210,19 +251,34 @@ class PdfViewerActivity : AppCompatActivity() {
             position: Int,
         ) {
             val image = holder.image
-            image.setImageDrawable(null)
-            image.minimumHeight = placeholderHeight
             image.tag = position
-            val targetWidth = if (recycler.width > 0) recycler.width else screenWidth
+
+            val exact = pageCache.get(cacheKey(position, renderScale))
+            if (exact != null) {
+                image.setImageBitmap(exact)
+                image.minimumHeight = 0
+                return
+            }
+
+            // Show the other resolution of this page, if we have it, until the new one is ready
+            val interim = pageCache.get(cacheKey(position, if (renderScale == 1) 2 else 1))
+            if (interim != null) {
+                image.setImageBitmap(interim)
+                image.minimumHeight = 0
+            } else {
+                image.setImageDrawable(null)
+                image.minimumHeight = placeholderHeight
+            }
+
+            val scale = renderScale
+            val baseWidth = if (recycler.width > 0) recycler.width else screenWidth
             try {
                 renderExecutor.execute {
-                    val bitmap = renderPage(position, targetWidth) ?: return@execute
+                    val bitmap = renderPage(position, scale, baseWidth) ?: return@execute
                     runOnUiThread {
-                        if (!isDestroyed && image.tag == position) {
+                        if (!isDestroyed && image.tag == position && renderScale == scale) {
                             image.setImageBitmap(bitmap)
                             image.minimumHeight = 0
-                        } else {
-                            bitmap.recycle()
                         }
                     }
                 }
@@ -241,5 +297,14 @@ class PdfViewerActivity : AppCompatActivity() {
         private const val KEY_PAGE = "pdf_page"
         private const val PAGE_GAP_DP = 8
         private const val PLACEHOLDER_ASPECT = 1.4f
+
+        // The page cache may use 1/6 of the app heap
+        private const val CACHE_FRACTION = 6
+
+        // Zoom above which pages are re-rendered at 2x
+        private const val SHARP_RENDER_ZOOM = 1.4f
+
+        // Upper bound on a rendered page width, to keep bitmaps from blowing the heap
+        private const val MAX_BITMAP_WIDTH = 3000
     }
 }
