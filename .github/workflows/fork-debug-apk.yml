@@ -52,21 +52,22 @@ jobs:
           cd file_operations
           chmod +x setup_rust_android.sh
           ./setup_rust_android.sh
-      - name: Probe cargo build
-        # Runs cargo alone so its real error is readable. Only for diagnosis.
-        continue-on-error: true
-        working-directory: file_operations
-        run: |
-          set +e
-          cargo build --target armv7-linux-androideabi > /tmp/cargo.log 2>&1
-          code=$?
-          shown=$(grep -v -E '^[[:space:]]*(Compiling|Downloaded|Downloading|Updating|Locking|Adding)' /tmp/cargo.log | tail -45 | cut -c1-250 | tr -d '\r')
-          cfg=$(head -14 .cargo/config.toml | cut -c1-200)
-          body=$(printf 'exit=%s rustc=%s\nndk dirs=%s\nANDROID_NDK_HOME=%s\n--- cargo ---\n%s\n--- config ---\n%s' "$code" "$(rustc --version)" "$(ls "$ANDROID_HOME/ndk" | tr '\n' ' ')" "$ANDROID_NDK_HOME" "$shown" "$cfg" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-          echo "::warning title=Cargo probe::${body}"
-          exit $code
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+      - name: Probe Rust task alone
+        # Runs only the failing Gradle task so its error is not buried in other output.
+        # Diagnosis only, remove once the build is green.
+        continue-on-error: true
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set +e
+          ./gradlew :file_operations:cargoBuildArm --stacktrace --info > /tmp/probe.log 2>&1
+          code=$?
+          shown=$(grep -v -E '^[[:space:]]*(Compiling|Downloaded|Downloading|Updating|Locking|Adding|at )' /tmp/probe.log | grep -i -E 'error|panick|linker|cannot|not found|failed|cc |clang|cargo|rustc|python|warning: unused|note:' | grep -v -E 'Deprecated|warning-mode|docs.gradle' | tail -50 | cut -c1-260 | tr -d '\r')
+          body=$(printf 'exit=%s ndk=%s\n--- filtered log ---\n%s' "$code" "$ANDROID_NDK_HOME" "$shown" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::warning title=Rust task probe::${body}"
+          exit $code
       - name: Build fdroid debug APK
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
