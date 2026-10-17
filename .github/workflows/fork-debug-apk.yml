@@ -52,6 +52,19 @@ jobs:
           cd file_operations
           chmod +x setup_rust_android.sh
           ./setup_rust_android.sh
+      - name: Probe cargo build
+        # Runs cargo alone so its real error is readable. Only for diagnosis.
+        continue-on-error: true
+        working-directory: file_operations
+        run: |
+          set +e
+          cargo build --target armv7-linux-androideabi > /tmp/cargo.log 2>&1
+          code=$?
+          shown=$(grep -v -E '^[[:space:]]*(Compiling|Downloaded|Downloading|Updating|Locking|Adding)' /tmp/cargo.log | tail -45 | cut -c1-250 | tr -d '\r')
+          cfg=$(head -14 .cargo/config.toml | cut -c1-200)
+          body=$(printf 'exit=%s rustc=%s\nndk dirs=%s\nANDROID_NDK_HOME=%s\n--- cargo ---\n%s\n--- config ---\n%s' "$code" "$(rustc --version)" "$(ls "$ANDROID_HOME/ndk" | tr '\n' ' ')" "$ANDROID_NDK_HOME" "$shown" "$cfg" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::warning title=Cargo probe::${body}"
+          exit $code
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       - name: Build fdroid debug APK
@@ -65,10 +78,8 @@ jobs:
         run: |
           # Job logs need a GitHub login to read, annotations do not.
           kotlin_errors=$(grep -E '^e: ' build.log | head -40 | cut -c1-300 | tr -d '\r')
-          cargo_part=$(awk '/Task :file_operations:cargoBuild/{f=1} f{print} /FAILURE: Build failed/{exit}' build.log | grep -v '^[[:space:]]*at ' | head -70 | cut -c1-300 | tr -d '\r')
-          env_info=$(printf 'rustc: %s\nndk dirs: %s\nANDROID_NDK_HOME: %s' "$(rustc --version)" "$(ls "$ANDROID_HOME/ndk" 2>&1 | tr '\n' ' ')" "$ANDROID_NDK_HOME")
-          cfg=$(head -25 file_operations/.cargo/config.toml 2>&1 | cut -c1-200)
-          body=$(printf '%s\n---- cargo ----\n%s\n---- env ----\n%s\n---- cargo config ----\n%s' "$kotlin_errors" "$cargo_part" "$env_info" "$cfg" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          wrong=$(grep -E -A4 'What went wrong' build.log | head -12 | cut -c1-300 | tr -d '\r')
+          body=$(printf '%s\n--- gradle ---\n%s' "$kotlin_errors" "$wrong" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
           echo "::error title=Build diagnostics::${body}"
       - name: Upload APK
         uses: actions/upload-artifact@v7
