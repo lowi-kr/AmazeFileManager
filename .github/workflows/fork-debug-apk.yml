@@ -57,7 +57,17 @@ jobs:
       - name: Build fdroid debug APK
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: ./gradlew assembleFdroidDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew assembleFdroidDebug --stacktrace 2>&1 | tee build.log
+      - name: Copy build errors into an annotation
+        if: failure()
+        run: |
+          # Job logs need a GitHub login to read, annotations do not.
+          errors=$(grep -E -A5 '^e: |error:|What went wrong|Execution failed for task|Could not (resolve|find)|Unresolved reference' build.log | head -80 | tr -d '\r')
+          tail_lines=$(tail -25 build.log | tr -d '\r')
+          body=$(printf '%s\n---- last lines ----\n%s' "$errors" "$tail_lines" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Gradle build errors::${body}"
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
