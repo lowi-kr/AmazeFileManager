@@ -261,6 +261,7 @@ dependencies {
 
     // Mammoth DOCX-to-HTML conversion; kept current to include upstream security fixes.
     implementation 'org.zwobble.mammoth:mammoth:1.13.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
     implementation libs.gson
     implementation libs.amaze.trashBin
