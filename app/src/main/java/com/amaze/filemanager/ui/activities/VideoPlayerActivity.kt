@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory
 /**
  * Minimal built-in video player based on Media3 ExoPlayer.
  *
- * Receives an ACTION_VIEW intent with a video/* mime type and a content:// or file:// uri.
+ * Receives an ACTION_VIEW intent for a video file, with a content or file uri.
  */
 class VideoPlayerActivity : AppCompatActivity() {
     private val log: Logger = LoggerFactory.getLogger(VideoPlayerActivity::class.java)
