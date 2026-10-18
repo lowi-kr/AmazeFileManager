@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -74,7 +75,20 @@ class AudioPlayerActivity : AppCompatActivity() {
                 })
                 val currentUri = controller.currentMediaItem?.localConfiguration?.uri
                 if (currentUri != uri) {
-                    controller.setMediaItem(MediaItem.fromUri(uri))
+                    val title = uri.lastPathSegment
+                        ?.substringAfterLast('/')
+                        ?.takeIf { it.isNotBlank() }
+                        ?: getString(R.string.amaze_audio_player)
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(uri)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(title)
+                                .setArtist(getString(R.string.app_name))
+                                .build(),
+                        )
+                        .build()
+                    controller.setMediaItem(mediaItem)
                     controller.prepare()
                     controller.play()
                 } else if (controller.playbackState == Player.STATE_IDLE) {
