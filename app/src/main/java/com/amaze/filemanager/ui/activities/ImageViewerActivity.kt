@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2014-2026 Arpit Khurana <arpitkh96@gmail.com>, Vishal Nehra <vishalmeham2@gmail.com>,
- * Emmanuel Messulam<emmanuelbendavid@gmail.com>, Raymond Lai <airwave209gt at gmail.com> and Contributors.
+ * Emmanuel Messulam <emmanuelbendavid@gmail.com> and Contributors.
  *
  * This file is part of Amaze File Manager.
  *
@@ -13,67 +13,109 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 package com.amaze.filemanager.ui.activities
 
+import android.content.Intent
+import android.database.Cursor
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatImageView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.amaze.filemanager.R
+import java.text.DecimalFormat
 
 /**
- * In-app image viewer with pinch-to-zoom, double-tap zoom, and panning.
+ * In-app image viewer with pinch-to-zoom, double-tap zoom, image details, and sharing.
  */
 class ImageViewerActivity : AppCompatActivity() {
+    private var imageUri: Uri? = null
+    private var imageView: ZoomableImageView? = null
+    private var overlay: View? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val uri: Uri =
-            intent?.data ?: run {
-                finish()
-                return
-            }
+        val uri: Uri = intent?.data ?: run {
+            finish()
+            return
+        }
+        imageUri = uri
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        val imageView = ZoomableImageView(this)
-        imageView.contentDescription = getString(R.string.image_viewer)
-        imageView.setBackgroundColor(android.graphics.Color.BLACK)
-        imageView.scaleType = ImageView.ScaleType.MATRIX
-        imageView.setImageURI(uri)
-
-        if (imageView.drawable == null) {
+        val viewer = ZoomableImageView(this).apply {
+            contentDescription = getString(R.string.image_viewer)
+            setBackgroundColor(android.graphics.Color.BLACK)
+            scaleType = ImageView.ScaleType.MATRIX
+            setImageURI(uri)
+        }
+        if (viewer.drawable == null) {
             Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_LONG).show()
             finish()
             return
         }
+        imageView = viewer
 
-        setContentView(
-            FrameLayout(this).apply {
-                setBackgroundColor(android.graphics.Color.BLACK)
-                addView(
-                    imageView,
-                    FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                    ),
-                )
-            },
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            addView(
+                viewer,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setBackgroundColor(0x99000000.toInt())
+        }
+        val title = TextView(this).apply {
+            text = displayName(uri)
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f)
+        }
+        val detailsButton = toolbarButton("ⓘ", "Image details")
+        detailsButton.setOnClickListener { showImageDetails(uri) }
+        val shareButton = toolbarButton("↗", "Share image")
+        shareButton.setOnClickListener { shareImage(uri) }
+        toolbar.addView(title)
+        toolbar.addView(detailsButton)
+        toolbar.addView(shareButton)
+        root.addView(
+            toolbar,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.TOP,
+            ),
         )
+        overlay = toolbar
+        setContentView(root)
         hideSystemBars()
     }
 
@@ -81,6 +123,105 @@ class ImageViewerActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) hideSystemBars()
     }
+
+    private fun toolbarButton(label: String, description: String): TextView =
+        TextView(this).apply {
+            text = label
+            contentDescription = description
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 24f
+            gravity = android.view.Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(android.R.drawable.list_selector_background)
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        }
+
+    private fun showImageDetails(uri: Uri) {
+        val name = displayName(uri)
+        val mimeType = contentResolver.getType(uri) ?: "Unknown"
+        var size: Long? = null
+        var cursor: Cursor? = null
+        try {
+            cursor = contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+            if (cursor?.moveToFirst() == true) {
+                val index = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (index >= 0 && !cursor.isNull(index)) size = cursor.getLong(index)
+            }
+        } catch (_: Exception) {
+            // Some content providers do not expose file size.
+        } finally {
+            cursor?.close()
+        }
+
+        var width = 0
+        var height = 0
+        try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeStream(input, null, options)
+                width = options.outWidth
+                height = options.outHeight
+            }
+        } catch (_: Exception) {
+            // Metadata may be unavailable for remote or unsupported content providers.
+        }
+
+        val sizeText = size?.let { formatBytes(it) } ?: "Unavailable"
+        val dimensions = if (width > 0 && height > 0) "$width × $height pixels" else "Unavailable"
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.image_viewer))
+            .setMessage(
+                "Name: $name\n\nType: $mimeType\n\nDimensions: $dimensions\n\nSize: $sizeText\n\nURI: $uri",
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun shareImage(uri: Uri) {
+        try {
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = contentResolver.getType(uri) ?: "image/*"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                clipData = android.content.ClipData.newUri(contentResolver, displayName(uri), uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(sendIntent, getString(R.string.share)))
+        } catch (error: Exception) {
+            Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun displayName(uri: Uri): String {
+        var cursor: Cursor? = null
+        try {
+            cursor = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            if (cursor?.moveToFirst() == true) {
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0) cursor.getString(index)?.takeIf { it.isNotBlank() }?.let { return it }
+            }
+        } catch (_: Exception) {
+            // Fall back to the URI path below.
+        } finally {
+            cursor?.close()
+        }
+        return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.image_viewer)
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val units = arrayOf("KB", "MB", "GB", "TB")
+        var value = bytes.toDouble()
+        var unit = -1
+        do {
+            value /= 1024.0
+            unit++
+        } while (value >= 1024.0 && unit < units.lastIndex)
+        return "${DecimalFormat("0.##").format(value)} ${units[unit]}"
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun hideSystemBars() {
         val controller = WindowInsetsControllerCompat(window, window.decorView)
@@ -119,8 +260,11 @@ private class ZoomableImageView(context: android.content.Context) : AppCompatIma
                     val targetScale = if (currentScale > 1.05f) 1f else 2.5f
                     val factor = targetScale / currentScale
                     currentScale = targetScale
-                    touchMatrix.postScale(factor, factor, e.x, e.y)
-                    applyMatrix()
+                    if (targetScale == 1f) fitImageToView()
+                    else {
+                        touchMatrix.postScale(factor, factor, e.x, e.y)
+                        applyMatrix()
+                    }
                     return true
                 }
             },
@@ -177,12 +321,7 @@ private class ZoomableImageView(context: android.content.Context) : AppCompatIma
         if (width <= 0 || height <= 0 || image.intrinsicWidth <= 0 || image.intrinsicHeight <= 0) {
             return
         }
-        val source = RectF(
-            0f,
-            0f,
-            image.intrinsicWidth.toFloat(),
-            image.intrinsicHeight.toFloat(),
-        )
+        val source = RectF(0f, 0f, image.intrinsicWidth.toFloat(), image.intrinsicHeight.toFloat())
         val destination = RectF(0f, 0f, width.toFloat(), height.toFloat())
         baseMatrix.setRectToRect(source, destination, Matrix.ScaleToFit.CENTER)
         touchMatrix.set(baseMatrix)
@@ -192,12 +331,7 @@ private class ZoomableImageView(context: android.content.Context) : AppCompatIma
 
     private fun applyMatrix() {
         val image = drawable ?: return
-        matrixRect.set(
-            0f,
-            0f,
-            image.intrinsicWidth.toFloat(),
-            image.intrinsicHeight.toFloat(),
-        )
+        matrixRect.set(0f, 0f, image.intrinsicWidth.toFloat(), image.intrinsicHeight.toFloat())
         touchMatrix.mapRect(matrixRect)
         val dx = when {
             matrixRect.width() <= width -> width / 2f - matrixRect.centerX()
