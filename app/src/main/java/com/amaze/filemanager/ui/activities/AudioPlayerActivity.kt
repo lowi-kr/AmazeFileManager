@@ -4,26 +4,28 @@
  */
 package com.amaze.filemanager.ui.activities
 
+import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.amaze.filemanager.R
+import com.google.common.util.concurrent.ListenableFuture
 import org.slf4j.LoggerFactory
 
-/** Built-in audio playback using the project's existing AndroidX Media3 stack. */
+/** Media3 controller UI for audio playback managed by a background MediaSessionService. */
 class AudioPlayerActivity : AppCompatActivity() {
     private val log = LoggerFactory.getLogger(AudioPlayerActivity::class.java)
-    private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
     private var audioUri: Uri? = null
-    private var resumePosition = 0L
-    private var resumePlayWhenReady = true
+    private var controllerFuture: ListenableFuture<MediaController>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,64 +38,58 @@ class AudioPlayerActivity : AppCompatActivity() {
         supportActionBar?.hide()
         setContentView(R.layout.activity_audio_player)
         playerView = findViewById(R.id.audio_view)
-        savedInstanceState?.let {
-            resumePosition = it.getLong(KEY_POSITION, 0L)
-            resumePlayWhenReady = it.getBoolean(KEY_PLAY_WHEN_READY, true)
-        }
     }
 
     override fun onStart() {
         super.onStart()
-        initializePlayer()
+        connectController()
     }
 
     override fun onStop() {
-        releasePlayer()
+        playerView?.player = null
+        controllerFuture?.let(MediaController::releaseFuture)
+        controllerFuture = null
         super.onStop()
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        player?.let {
-            resumePosition = it.currentPosition
-            resumePlayWhenReady = it.playWhenReady
-        }
-        outState.putLong(KEY_POSITION, resumePosition)
-        outState.putBoolean(KEY_PLAY_WHEN_READY, resumePlayWhenReady)
-        super.onSaveInstanceState(outState)
-    }
-
-    private fun initializePlayer() {
+    private fun connectController() {
         val uri = audioUri ?: return
-        val view = playerView ?: return
-        if (player != null) return
-        val mediaPlayer = ExoPlayer.Builder(this).build()
-        mediaPlayer.addListener(object : Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                log.error("Audio playback failed for {}", uri, error)
-                Toast.makeText(this@AudioPlayerActivity, R.string.audio_open_failed, Toast.LENGTH_LONG).show()
+        val token = SessionToken(this, ComponentName(this, AudioPlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        controllerFuture = future
+        future.addListener({
+            try {
+                val controller = future.get()
+                playerView?.player = controller
+                controller.addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) {
+                        log.error("Audio playback failed for {}", uri, error)
+                        Toast.makeText(
+                            this@AudioPlayerActivity,
+                            R.string.audio_open_failed,
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        finish()
+                    }
+                })
+                val currentUri = controller.currentMediaItem?.localConfiguration?.uri
+                if (currentUri != uri) {
+                    controller.setMediaItem(MediaItem.fromUri(uri))
+                    controller.prepare()
+                    controller.play()
+                } else if (controller.playbackState == Player.STATE_IDLE) {
+                    controller.prepare()
+                    controller.play()
+                }
+            } catch (error: Exception) {
+                log.error("Could not connect to audio playback service for {}", uri, error)
+                Toast.makeText(
+                    this@AudioPlayerActivity,
+                    R.string.audio_open_failed,
+                    Toast.LENGTH_LONG,
+                ).show()
                 finish()
             }
-        })
-        view.player = mediaPlayer
-        mediaPlayer.setMediaItem(MediaItem.fromUri(uri))
-        mediaPlayer.playWhenReady = resumePlayWhenReady
-        mediaPlayer.seekTo(resumePosition)
-        mediaPlayer.prepare()
-        player = mediaPlayer
-    }
-
-    private fun releasePlayer() {
-        player?.let {
-            resumePosition = it.currentPosition
-            resumePlayWhenReady = it.playWhenReady
-            it.release()
-        }
-        player = null
-        playerView?.player = null
-    }
-
-    companion object {
-        private const val KEY_POSITION = "audio_position"
-        private const val KEY_PLAY_WHEN_READY = "audio_play_when_ready"
+        }, ContextCompat.getMainExecutor(this))
     }
 }
