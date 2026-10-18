@@ -24,6 +24,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK command-line tools
+        uses: android-actions/setup-android@v3
+
       - name: Install the exact Android NDK required by Gradle
         shell: bash
         run: |
