@@ -82,7 +82,6 @@ class ImageViewerActivity : AppCompatActivity() {
 }
 
 private class ZoomableImageView(context: android.content.Context) : AppCompatImageView(context) {
-    private val imageMatrixValues = FloatArray(9)
     private val matrixRect = RectF()
     private var lastX = 0f
     private var lastY = 0f
@@ -181,8 +180,6 @@ private class ZoomableImageView(context: android.content.Context) : AppCompatIma
     }
 
     private fun applyMatrix() {
-        touchMatrix.getValues(imageMatrixValues)
-        touchMatrix.getValues(imageMatrixValues)
         val image = drawable ?: return
         matrixRect.set(
             0f,
