@@ -814,6 +814,7 @@ You only need to do this once, until the next time you select a new location for
     <string name="image_viewer">Amaze Image Viewer</string>
     <string name="video_player">Amaze Video Player</string>
     <string name="amaze_audio_player">Amaze Music Player</string>
+    <string name="audio_open_failed">Could not play this audio file.</string>
     <string name="pdf_viewer">Amaze Document Viewer</string>
     <string name="docx_viewer">Amaze Document Viewer</string>
     <string name="share_logs">Share logs</string>

@@ -213,6 +213,23 @@
             </intent-filter>
         </activity>
 
+
+        <activity
+            android:exported="true"
+            android:label="@string/amaze_audio_player"
+            android:name=".ui.activities.AudioPlayerActivity"
+            android:configChanges="orientation|screenSize|uiMode"
+            android:theme="@style/appCompatBlack">
+            <intent-filter
+                tools:ignore="AppLinkUrlError"
+                android:label="@string/amaze_audio_player">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.OPENABLE" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:exported="true"
             android:label="@string/video_player"
