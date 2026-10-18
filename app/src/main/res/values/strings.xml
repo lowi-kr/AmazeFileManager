@@ -877,5 +877,5 @@ You only need to do this once, until the next time you select a new location for
     <string name="trash_bin_cleanup_interval_summary">Trigger auto-cleanup interval (hours)</string>
     <string name="file_deletion">File Deletion</string>
     <string name="error_mediastore_query_uri">Error querying content URI of selected media file. Refresh the MediaStore and try again.</string>
+    <string name="docx_open_failed">Could not open this Word document.</string>
 </resources>
-
