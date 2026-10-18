@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.amaze.filemanager"
+        applicationId "com.figautoreply"
         minSdkVersion libs.versions.minSdk.get().toInteger()
         targetSdkVersion libs.versions.targetSdk.get().toInteger()
         versionCode 125

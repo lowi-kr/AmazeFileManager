@@ -10,7 +10,7 @@
         <intent
             android:action="com.amaze.filemanager.openQuickAccess"
             android:targetClass="com.amaze.filemanager.ui.activities.MainActivity"
-            android:targetPackage="com.amaze.filemanager" />
+            android:targetPackage="com.figautoreply" />
     </shortcut>
 
     <shortcut
@@ -22,7 +22,7 @@
         <intent
             android:action="com.amaze.filemanager.openRecent"
             android:targetClass="com.amaze.filemanager.ui.activities.MainActivity"
-            android:targetPackage="com.amaze.filemanager" />
+            android:targetPackage="com.figautoreply" />
     </shortcut>
 
     <shortcut
@@ -34,7 +34,7 @@
         <intent
             android:action="com.amaze.filemanager.openAppManager"
             android:targetClass="com.amaze.filemanager.ui.activities.MainActivity"
-            android:targetPackage="com.amaze.filemanager" />
+            android:targetPackage="com.figautoreply" />
     </shortcut>
 
     <shortcut
@@ -46,7 +46,7 @@
         <intent
             android:action="com.amaze.filemanager.openFTPServer"
             android:targetClass="com.amaze.filemanager.ui.activities.MainActivity"
-            android:targetPackage="com.amaze.filemanager" />
+            android:targetPackage="com.figautoreply" />
     </shortcut>
 
 </shortcuts>
