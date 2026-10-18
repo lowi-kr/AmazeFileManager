@@ -25,11 +25,6 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
-
-      - name: Set up Android SDK command-line tools
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
       - name: Install the exact Android NDK required by Gradle
         shell: bash
         run: |
