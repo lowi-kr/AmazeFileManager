@@ -13,7 +13,6 @@
         android:keepScreenOn="true"
         app:surface_type="surface_view"
         app:controller_layout_id="@layout/video_player_controls"
-        app:use_controller="true"
-        app:controller_hide_on_touch="true" />
+        app:use_controller="true" />
 
 </FrameLayout>
