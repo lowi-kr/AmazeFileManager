@@ -155,19 +155,19 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
       - name: Configure release signing
         env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          for name in RELEASE_KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::Required repository secret $name is missing or empty."
               exit 1
             fi
           done
-          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > release.keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > release.keystore
           cat > signing.properties <<EOF
           STORE_FILE=$GITHUB_WORKSPACE/release.keystore
           STORE_PASSWORD=$STORE_PASSWORD
