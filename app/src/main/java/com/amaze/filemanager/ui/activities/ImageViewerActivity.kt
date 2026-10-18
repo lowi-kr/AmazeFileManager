@@ -43,10 +43,11 @@ import com.amaze.filemanager.R
 class ImageViewerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val uri: Uri = intent?.data ?: run {
-            finish()
-            return
-        }
+        val uri: Uri =
+            intent?.data ?: run {
+                finish()
+                return
+            }
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         val imageView = ZoomableImageView(this)
@@ -56,7 +57,7 @@ class ImageViewerActivity : AppCompatActivity() {
         imageView.setImageURI(uri)
 
         if (imageView.drawable == null) {
-            Toast.makeText(this, R.string.unsupported_operation, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.operation_not_supported, Toast.LENGTH_LONG).show()
             finish()
             return
         }
@@ -96,32 +97,34 @@ private class ZoomableImageView(context: android.content.Context) : AppCompatIma
     private var currentScale = 1f
     private val baseMatrix = Matrix()
     private val touchMatrix = Matrix()
-    private val scaleDetector = ScaleGestureDetector(
-        context,
-        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val nextScale = (currentScale * detector.scaleFactor).coerceIn(1f, 5f)
-                val factor = nextScale / currentScale
-                currentScale = nextScale
-                touchMatrix.postScale(factor, factor, detector.focusX, detector.focusY)
-                applyMatrix()
-                return true
-            }
-        },
-    )
-    private val gestureDetector = GestureDetector(
-        context,
-        object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                val targetScale = if (currentScale > 1.05f) 1f else 2.5f
-                val factor = targetScale / currentScale
-                currentScale = targetScale
-                touchMatrix.postScale(factor, factor, e.x, e.y)
-                applyMatrix()
-                return true
-            }
-        },
-    )
+    private val scaleDetector =
+        ScaleGestureDetector(
+            context,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val nextScale = (currentScale * detector.scaleFactor).coerceIn(1f, 5f)
+                    val factor = nextScale / currentScale
+                    currentScale = nextScale
+                    touchMatrix.postScale(factor, factor, detector.focusX, detector.focusY)
+                    applyMatrix()
+                    return true
+                }
+            },
+        )
+    private val gestureDetector =
+        GestureDetector(
+            context,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    val targetScale = if (currentScale > 1.05f) 1f else 2.5f
+                    val factor = targetScale / currentScale
+                    currentScale = targetScale
+                    touchMatrix.postScale(factor, factor, e.x, e.y)
+                    applyMatrix()
+                    return true
+                }
+            },
+        )
 
     init {
         scaleType = ScaleType.MATRIX
