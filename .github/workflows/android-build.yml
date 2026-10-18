@@ -21,12 +21,16 @@ jobs:
         with:
           distribution: "temurin"
           java-version: 17
-      - name: Set up NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r28c
-          link-to-sdk: true
-          local-cache: true
+      - name: Install the exact Android NDK required by Gradle
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --uninstall "ndk;28.2.13676358" || true
+          sdkmanager --install "ndk;28.2.13676358"
+          NDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME}}/ndk/28.2.13676358"
+          test -x "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
+          test -x "$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi21-clang"
+          echo "Verified NDK compiler: $NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:

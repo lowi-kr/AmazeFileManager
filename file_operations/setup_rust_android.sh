@@ -35,16 +35,11 @@ find_android_sdk() {
     fi
 }
 
-# Function to find the latest NDK version
+# Use the exact NDK version pinned in Gradle's version catalog.
 find_ndk_version() {
-    local sdk_path="$1"
-    local ndk_dir="$sdk_path/ndk"
-    
-    if [ -d "$ndk_dir" ]; then
-        # Find the latest version (highest version number)
-        ls -1 "$ndk_dir" | sort -V | tail -n 1
-    else
-        echo ""
+    local version_catalog="../gradle/libs.versions.toml"
+    if [ -f "$version_catalog" ]; then
+        sed -n 's/^ndk[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$version_catalog" | head -n 1
     fi
 }
 
@@ -109,15 +104,22 @@ if [ "$OS_PLATFORM" = "windows-x86_64" ]; then
 fi
 
 # Construct NDK path
-NDK_PATH="$ANDROID_SDK_PATH/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/$OS_PLATFORM/bin"
+NDK_ROOT="$ANDROID_SDK_PATH/ndk/$NDK_VERSION"
+NDK_PATH="$NDK_ROOT/toolchains/llvm/prebuilt/$OS_PLATFORM/bin"
 
-# Verify NDK path exists
+# Verify the actual compiler as well as the wrapper scripts.
 if [ ! -d "$NDK_PATH" ]; then
     echo "❌ NDK toolchain not found at: $NDK_PATH"
-    echo "   Please check your NDK installation"
+    echo "   Required NDK version from Gradle: $NDK_VERSION"
+    exit 1
+fi
+if [ ! -x "$NDK_PATH/clang" ]; then
+    echo "❌ NDK clang compiler is missing or not executable: $NDK_PATH/clang"
+    echo "   Reinstall Android NDK $NDK_VERSION and retry."
     exit 1
 fi
 
+echo "🛠️  NDK root: $NDK_ROOT"
 echo "🛠️  NDK toolchain path: $NDK_PATH"
 
 # Install Rust targets for Android
@@ -158,10 +160,11 @@ LINKERS=(
 )
 
 for linker in "${LINKERS[@]}"; do
-    if [ -f "$NDK_PATH/$linker" ]; then
+    if [ -x "$NDK_PATH/$linker" ]; then
         echo "  ✅ $linker"
     else
-        echo "  ❌ $linker (not found)"
+        echo "  ❌ $linker (not found or not executable)"
+        exit 1
     fi
 done
 
@@ -179,4 +182,4 @@ echo "🚀 You can now build for Android using:"
 echo "   cargo build --target aarch64-linux-android"
 echo "   cargo build --target armv7-linux-androideabi"
 echo "   cargo build --target i686-linux-android"
-echo "   cargo build --target x86_64-linux-android" 
+echo "   cargo build --target x86_64-linux-android"
