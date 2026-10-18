@@ -20,9 +20,11 @@
 
 package com.amaze.filemanager.ui.activities
 
-import android.graphics.Color
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
+import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowInsetsCompat
@@ -37,9 +39,9 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 /**
- * Minimal built-in video player based on Media3 ExoPlayer.
+ * Built-in Media3 player with bottom-positioned transport controls and an orientation toggle.
  *
- * Receives an ACTION_VIEW intent for a video file, with a content or file uri.
+ * Receives an ACTION_VIEW intent for a video file, with a content or file URI.
  */
 class VideoPlayerActivity : AppCompatActivity() {
     private val log: Logger = LoggerFactory.getLogger(VideoPlayerActivity::class.java)
@@ -49,6 +51,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var videoUri: Uri? = null
     private var resumePosition = 0L
     private var resumePlayWhenReady = true
+    private var forcedOrientation: Int? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,17 +62,19 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
 
         supportActionBar?.hide()
-        val view =
-            PlayerView(this).apply {
-                setBackgroundColor(Color.BLACK)
-            }
+        setContentView(R.layout.activity_video_player)
+        val view = findViewById<PlayerView>(R.id.video_view)
         playerView = view
-        setContentView(view)
+        findViewById<ImageButton>(R.id.rotate_screen).setOnClickListener {
+            toggleOrientation()
+        }
         hideSystemBars()
 
         savedInstanceState?.let {
             resumePosition = it.getLong(KEY_POSITION, 0L)
             resumePlayWhenReady = it.getBoolean(KEY_PLAY_WHEN_READY, true)
+            forcedOrientation = it.getInt(KEY_FORCED_ORIENTATION, NO_FORCED_ORIENTATION)
+                .takeUnless { orientation -> orientation == NO_FORCED_ORIENTATION }
         }
     }
 
@@ -96,6 +101,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         }
         outState.putLong(KEY_POSITION, resumePosition)
         outState.putBoolean(KEY_PLAY_WHEN_READY, resumePlayWhenReady)
+        outState.putInt(KEY_FORCED_ORIENTATION, forcedOrientation ?: NO_FORCED_ORIENTATION)
     }
 
     private fun initializePlayer() {
@@ -125,6 +131,17 @@ class VideoPlayerActivity : AppCompatActivity() {
         player = exoPlayer
     }
 
+    private fun toggleOrientation() {
+        val current = resources.configuration.orientation
+        val target = if (current == Configuration.ORIENTATION_LANDSCAPE) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+        forcedOrientation = target
+        requestedOrientation = target
+    }
+
     private fun releasePlayer() {
         player?.let {
             resumePosition = it.currentPosition
@@ -145,5 +162,7 @@ class VideoPlayerActivity : AppCompatActivity() {
     companion object {
         private const val KEY_POSITION = "video_position"
         private const val KEY_PLAY_WHEN_READY = "video_play_when_ready"
+        private const val KEY_FORCED_ORIENTATION = "video_forced_orientation"
+        private const val NO_FORCED_ORIENTATION = -100
     }
 }
