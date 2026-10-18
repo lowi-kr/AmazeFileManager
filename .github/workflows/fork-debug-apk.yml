@@ -24,13 +24,21 @@ jobs:
         with:
           distribution: "temurin"
           java-version: 17
-      - name: Set up NDK
-        id: setup-ndk
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r28c
-          link-to-sdk: true
-          local-cache: true
+      - name: Install NDK 28.2.13676358 (clean)
+        # The Gradle build is pinned to this exact NDK (gradle/libs.versions.toml).
+        # The copy that was linked in earlier had no bin/clang, so reinstall it
+        # with the SDK manager and fail early if clang is still missing.
+        run: |
+          set -e
+          NDK_DIR="$ANDROID_HOME/ndk/28.2.13676358"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          rm -rf "$NDK_DIR"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install "ndk;28.2.13676358"
+          BIN="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          ls -la "$BIN" | grep -E ' clang' || true
+          test -e "$BIN/clang"
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -55,24 +63,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
       - name: Build fdroid debug APK
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -o pipefail
           ./gradlew assembleFdroidDebug --stacktrace 2>&1 | tee build.log
-      - name: Show Rust build error
+      - name: Show build errors
         # Diagnosis only, runs last so the output sits at the end of the job log.
         if: failure()
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set +e
-          ./gradlew :file_operations:cargoBuildArm --info --console=plain > rust.log 2>&1
-          echo "=== RUST DIAGNOSTICS START ==="
+          echo "=== BUILD DIAGNOSTICS START ==="
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          rustc --version
-          awk '/Starting process .command .cargo/{f=1} f{print} /finished with non-zero exit/{exit}' rust.log | cut -c1-400 | head -150
-          echo "=== RUST DIAGNOSTICS END ==="
+          grep -E '^e: ' build.log | head -60 | cut -c1-400
+          grep -E -B2 -A12 'error(\[|:)' build.log | grep -v -E '^[[:space:]]*at ' | head -80 | cut -c1-400
+          grep -E -A6 'What went wrong' build.log | head -20 | cut -c1-300
+          echo "=== BUILD DIAGNOSTICS END ==="
           exit 0
       - name: Upload APK
         uses: actions/upload-artifact@v7
