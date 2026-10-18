@@ -54,34 +54,26 @@ jobs:
           ./setup_rust_android.sh
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-      - name: Probe Rust task alone
-        # Runs only the failing Gradle task so its error is not buried in other output.
-        # Diagnosis only, remove once the build is green.
-        continue-on-error: true
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: |
-          set +e
-          ./gradlew :file_operations:cargoBuildArm --stacktrace --info > /tmp/probe.log 2>&1
-          code=$?
-          shown=$(grep -v -E '^[[:space:]]*(Compiling|Downloaded|Downloading|Updating|Locking|Adding|at )' /tmp/probe.log | grep -i -E 'error|panick|linker|cannot|not found|failed|cc |clang|cargo|rustc|python|warning: unused|note:' | grep -v -E 'Deprecated|warning-mode|docs.gradle' | tail -50 | cut -c1-260 | tr -d '\r')
-          body=$(printf 'exit=%s ndk=%s\n--- filtered log ---\n%s' "$code" "$ANDROID_NDK_HOME" "$shown" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-          echo "::warning title=Rust task probe::${body}"
-          exit $code
       - name: Build fdroid debug APK
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -o pipefail
           ./gradlew assembleFdroidDebug --stacktrace 2>&1 | tee build.log
-      - name: Copy build errors into an annotation
+      - name: Show Rust build error
+        # Diagnosis only, runs last so the output sits at the end of the job log.
         if: failure()
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          # Job logs need a GitHub login to read, annotations do not.
-          kotlin_errors=$(grep -E '^e: ' build.log | head -40 | cut -c1-300 | tr -d '\r')
-          wrong=$(grep -E -A4 'What went wrong' build.log | head -12 | cut -c1-300 | tr -d '\r')
-          body=$(printf '%s\n--- gradle ---\n%s' "$kotlin_errors" "$wrong" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
-          echo "::error title=Build diagnostics::${body}"
+          set +e
+          ./gradlew :file_operations:cargoBuildArm --info --console=plain > rust.log 2>&1
+          echo "=== RUST DIAGNOSTICS START ==="
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          rustc --version
+          awk '/Starting process .command .cargo/{f=1} f{print} /finished with non-zero exit/{exit}' rust.log | cut -c1-400 | head -150
+          echo "=== RUST DIAGNOSTICS END ==="
+          exit 0
       - name: Upload APK
         uses: actions/upload-artifact@v7
         with:
