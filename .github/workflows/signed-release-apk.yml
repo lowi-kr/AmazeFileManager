@@ -1,6 +1,9 @@
 name: Signed Release APK
 
 on:
+  push:
+    branches:
+      - 'feature/embed-utilities'
   workflow_dispatch:
 
 permissions:

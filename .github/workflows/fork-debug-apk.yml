@@ -4,9 +4,6 @@ name: Fork debug APK
 # downloaded and installed without a local Android toolchain.
 # Runs on every push to a feature/** branch, or manually from the Actions tab.
 on:
-  push:
-    branches:
-      - 'feature/**'
   workflow_dispatch:
 
 concurrency:

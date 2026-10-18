@@ -1,11 +1,7 @@
 name: Android Main CI
 
 on:
-  push:
-    branches:
-      - 'master'
-      - 'release/*'
-      - 'hotfix/*'
+  workflow_dispatch:
 
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
@@ -189,4 +185,3 @@ jobs:
             adb logcat -c
             adb logcat *:E &
             ./gradlew :app:connectedCheck
-

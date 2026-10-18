@@ -1,11 +1,7 @@
 name: Fastlane checks
 
 on:
-  pull_request:
-    branches:
-      - 'master'
-      - 'release/*'
-      - 'hotfix/*'
+  workflow_dispatch:
 
 jobs:
   check_files:
