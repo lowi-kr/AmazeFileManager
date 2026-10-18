@@ -21,6 +21,7 @@
 package com.amaze.filemanager.ui.activities
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.amaze.filemanager.BuildConfig
@@ -56,6 +57,20 @@ class UtilitiesAliasActivity : AppCompatActivity() {
         _binding.cancelButton.setOnClickListener {
             finish()
         }
+        val incomingType = intent?.type
+        if (incomingType?.startsWith("image/") == true && intent?.data != null) {
+            startActivity(
+                Intent(this, ImageViewerActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = intent.data
+                    type = incomingType
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                },
+            )
+            finish()
+            return
+        }
+
         val isAUInstalled =
             PackageUtils.appInstalledOrNot(
                 AboutActivity.PACKAGE_AMAZE_UTILS,

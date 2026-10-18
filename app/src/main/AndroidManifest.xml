@@ -200,6 +200,20 @@
         </activity>
 
         <activity
+            android:name=".ui.activities.ImageViewerActivity"
+            android:exported="true"
+            android:label="@string/image_viewer"
+            android:configChanges="orientation|screenSize|uiMode"
+            android:theme="@style/appCompatBlack">
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.OPENABLE" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:exported="true"
             android:label="@string/video_player"
             android:name=".ui.activities.VideoPlayerActivity"
@@ -257,14 +271,6 @@
                 tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <data android:mimeType="audio/*" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.OPENABLE" />
-            </intent-filter>
-            <intent-filter
-                android:label="@string/image_viewer"
-                tools:ignore="AppLinkUrlError">
-                <action android:name="android.intent.action.VIEW" />
-                <data android:mimeType="image/*" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.OPENABLE" />
             </intent-filter>
