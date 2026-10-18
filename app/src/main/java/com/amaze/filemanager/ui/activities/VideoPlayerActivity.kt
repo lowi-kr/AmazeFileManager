@@ -73,8 +73,9 @@ class VideoPlayerActivity : AppCompatActivity() {
         savedInstanceState?.let {
             resumePosition = it.getLong(KEY_POSITION, 0L)
             resumePlayWhenReady = it.getBoolean(KEY_PLAY_WHEN_READY, true)
-            forcedOrientation = it.getInt(KEY_FORCED_ORIENTATION, NO_FORCED_ORIENTATION)
-                .takeUnless { orientation -> orientation == NO_FORCED_ORIENTATION }
+            forcedOrientation =
+                it.getInt(KEY_FORCED_ORIENTATION, NO_FORCED_ORIENTATION)
+                    .takeUnless { orientation -> orientation == NO_FORCED_ORIENTATION }
         }
     }
 
@@ -133,11 +134,12 @@ class VideoPlayerActivity : AppCompatActivity() {
 
     private fun toggleOrientation() {
         val current = resources.configuration.orientation
-        val target = if (current == Configuration.ORIENTATION_LANDSCAPE) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        }
+        val target =
+            if (current == Configuration.ORIENTATION_LANDSCAPE) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
         forcedOrientation = target
         requestedOrientation = target
     }
