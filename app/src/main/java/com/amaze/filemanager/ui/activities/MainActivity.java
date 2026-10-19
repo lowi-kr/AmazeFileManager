@@ -430,13 +430,6 @@ public class MainActivity extends PermissionsActivity
               servers.addAll(utilsHandler.getSmbList());
               servers.addAll(utilsHandler.getSftpList());
               dataUtils.setServers(servers);
-
-              ExtensionsKt.updateAUAlias(
-                  this,
-                  !PackageUtils.Companion.appInstalledOrNot(
-                          AboutActivity.PACKAGE_AMAZE_UTILS, mainActivity.getPackageManager())
-                      && !getBoolean(
-                          PreferencesConstants.PREFERENCE_DISABLE_PLAYER_INTENT_FILTERS));
             })
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
