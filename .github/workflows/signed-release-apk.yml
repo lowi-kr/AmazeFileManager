@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'feature/embed-utilities'
+      - 'feature/utilities-phase1'
   workflow_dispatch:
 
 permissions:
