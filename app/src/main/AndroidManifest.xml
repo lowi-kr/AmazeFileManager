@@ -287,6 +287,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.activities.StorageAnalyserActivity"
+            android:exported="false"
+            android:label="@string/analyse_storage"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <activity android:name=".ui.activities.AboutActivity"
             android:theme="@style/aboutBlack"
             android:configChanges="uiMode"
