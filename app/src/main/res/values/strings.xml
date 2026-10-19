@@ -807,6 +807,7 @@ You only need to do this once, until the next time you select a new location for
     <string name="error_cant_decompress_that_file">Cannot process the requested archive</string>
     <string name="analyse_storage">Analyse Storage</string>
     <string name="amaze_file_utilities" translatable="false">Amaze File Utilities</string>
+    <string name="download_amaze_utils_text">This feature is now built into Amaze File Manager.</string>
     <string name="download">Download</string>
     <string name="wifip2p">Wi-Fi P2P</string>
     <string name="image_viewer">Amaze Image Viewer</string>
