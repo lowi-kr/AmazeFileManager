@@ -132,9 +132,6 @@ public class Drawer implements NavigationView.OnNavigationItemSelectedListener {
   private CustomNavigationView navView;
   private RelativeLayout drawerHeaderParent;
   private View drawerHeaderLayout, drawerHeaderView;
-  private AppCompatImageView donateImageView;
-  private AppCompatImageView telegramImageView;
-  private AppCompatImageView instagramImageView;
   private AppCompatTextView appVersion;
 
   /** Tablet is defined as 'width > 720dp' */
@@ -149,17 +146,10 @@ public class Drawer implements NavigationView.OnNavigationItemSelectedListener {
     drawerHeaderLayout = mainActivity.getLayoutInflater().inflate(R.layout.drawerheader, null);
     drawerHeaderParent = drawerHeaderLayout.findViewById(R.id.drawer_header_parent);
     drawerHeaderView = drawerHeaderLayout.findViewById(R.id.drawer_header);
-    donateImageView = drawerHeaderLayout.findViewById(R.id.donate);
-    telegramImageView = drawerHeaderLayout.findViewById(R.id.telegram);
-    instagramImageView = drawerHeaderLayout.findViewById(R.id.instagram);
     appVersion = drawerHeaderLayout.findViewById(R.id.app_version);
     if (BuildConfig.DEBUG) {
       appVersion.setVisibility(View.VISIBLE);
     }
-    donateImageView.setOnClickListener(v -> new Billing(mainActivity));
-    telegramImageView.setOnClickListener(v -> Utils.openTelegramURL(mainActivity));
-    instagramImageView.setOnClickListener(v -> Utils.openInstagramURL(mainActivity));
-    initDrawerFocusItems();
     /*drawerHeaderView.setOnLongClickListener(
     v -> {
       Intent intent1;
@@ -612,29 +602,6 @@ public class Drawer implements NavigationView.OnNavigationItemSelectedListener {
       item.setChecked(true);
       actionViewStateManager.selectActionView(item);
     }
-  }
-
-  private void initDrawerFocusItems() {
-    donateImageView.setOnKeyListener(
-        (v, keyCode, event) -> {
-          if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT) {
-              mainActivity.getAppbar().getAppbarLayout().requestFocus();
-              mainActivity.getAppbar().getToolbar().requestFocus();
-            } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_CENTER) {
-              new Billing(mainActivity);
-            } else if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-              mainActivity.onBackPressed();
-            } else {
-              return false;
-            }
-          }
-          return true;
-        });
-  }
-
-  public AppCompatImageView getDonateImageView() {
-    return this.donateImageView;
   }
 
   private void addNewItem(
