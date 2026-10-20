@@ -123,7 +123,7 @@ public class BottomBar implements View.OnTouchListener {
             if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_DOWN) {
               mainActivity.findViewById(R.id.content_frame).requestFocus();
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_DPAD_LEFT) {
-              mainActivity.getDrawer().getDonateImageView().requestFocus();
+              mainActivity.findViewById(R.id.content_frame).requestFocus();
             } else if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
               mainActivity.onBackPressed();
             } else {
