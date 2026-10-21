@@ -43,6 +43,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import android.text.InputType
 import android.text.format.Formatter
+import android.text.method.DigitsKeyListener
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -216,7 +217,9 @@ class WifiTransferActivity : Activity() {
         lan.addView(kit.label("Type the address shown under This device on the other phone.", 13f, Kit.MUTED))
         ipInput = EditText(this)
         ipInput.hint = "192.168.1.20"
-        ipInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+        // A decimal number field accepts only one dot, an IP address needs three
+        ipInput.inputType = InputType.TYPE_CLASS_NUMBER
+        ipInput.keyListener = DigitsKeyListener.getInstance("0123456789.")
         ipInput.setTextColor(Kit.TXT)
         ipInput.setHintTextColor(Kit.MUTED)
         lan.addView(ipInput, LinearLayout.LayoutParams(Kit.MATCH, Kit.WRAP).apply { topMargin = kit.dp(6) })
