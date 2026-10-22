@@ -3,4 +3,18 @@
     <string name="video_open_failed">Cannot play this video</string>
     <string name="pdf_open_failed">Cannot open this PDF</string>
     <string name="pdf_password_protected">Password-protected PDFs are not supported yet</string>
+
+    <string name="rotate_screen">Rotate screen</string>
+    <string name="aspect_ratio">Change video fit</string>
+    <string name="playback_speed">Playback speed</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="subtitles_off">Off</string>
+    <string name="subtitles_load_file">Load subtitle file…</string>
+    <string name="subtitles_load_failed">Could not open a subtitle picker on this device</string>
+    <string name="lock_screen">Lock screen controls</string>
+    <string name="screen_locked">Screen locked</string>
+    <string name="screen_unlocked">Screen unlocked</string>
+    <string name="picture_in_picture">Picture in picture</string>
+    <string name="volume_percent">Volume %1$d%%</string>
+    <string name="brightness_percent">Brightness %1$d%%</string>
 </resources>

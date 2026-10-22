@@ -51,8 +51,69 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="44dp"
         android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/lock_screen"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/lock_screen"
+            android:src="@drawable/ic_round_lock_open_24" />
+
+        <ImageButton
+            android:id="@+id/aspect_ratio"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/aspect_ratio"
+            android:src="@drawable/ic_round_aspect_ratio_24" />
+
+        <ImageButton
+            android:id="@+id/playback_speed"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/playback_speed"
+            android:src="@drawable/ic_round_speed_24" />
+
+        <ImageButton
+            android:id="@+id/subtitles"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/subtitles"
+            android:src="@drawable/ic_round_subtitles_24" />
+
+        <ImageButton
+            android:id="@+id/enter_pip"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/picture_in_picture"
+            android:src="@drawable/ic_round_picture_in_picture_alt_24" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/rotate_screen"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/rotate_screen"
+            android:src="@android:drawable/ic_menu_rotate"
+            android:tint="@android:color/white" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center"
         android:orientation="horizontal">
 
         <ImageButton
@@ -89,20 +150,6 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Forward 10 seconds"
             android:src="@android:drawable/ic_media_ff"
-            android:tint="@android:color/white" />
-
-        <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-
-        <ImageButton
-            android:id="@+id/rotate_screen"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Rotate screen"
-            android:src="@android:drawable/ic_menu_rotate"
             android:tint="@android:color/white" />
     </LinearLayout>
 </LinearLayout>
