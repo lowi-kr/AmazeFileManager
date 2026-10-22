@@ -248,6 +248,8 @@
             android:label="@string/video_player"
             android:name=".ui.activities.VideoPlayerActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
             android:theme="@style/appCompatBlack">
             <intent-filter
                 tools:ignore="AppLinkUrlError"
