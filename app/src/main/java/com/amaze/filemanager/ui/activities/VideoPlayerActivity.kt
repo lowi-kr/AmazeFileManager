@@ -121,6 +121,7 @@ class VideoPlayerActivity : AppCompatActivity() {
 
         val gesture = VideoGestureView(this)
         gesture.listener = gestureListener()
+        gesture.controlsView = findViewById(R.id.exo_controller)
         (view.parent as ViewGroup).addView(
             gesture,
             view.layoutParams.let { FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) },
