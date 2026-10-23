@@ -75,6 +75,9 @@ class VideoPlayerActivity : AppCompatActivity() {
     private var gestureView: VideoGestureView? = null
     private var feedbackText: TextView? = null
     private var lockButton: ImageButton? = null
+    private var floatingUnlockButton: ImageButton? = null
+    private var backButton: TextView? = null
+    private var lockOverlayHideRunnable: Runnable? = null
     private var controlsRoot: ViewGroup? = null
     private var videoUri: Uri? = null
     private var externalSubtitle: Uri? = null
@@ -135,6 +138,42 @@ class VideoPlayerActivity : AppCompatActivity() {
                 setPadding(dp(14), dp(8), dp(14), dp(8))
                 visibility = android.view.View.GONE
                 val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                lp.gravity = android.view.Gravity.CENTER
+                (controlsRoot as FrameLayout).addView(this, lp)
+            }
+
+        backButton =
+            TextView(this).apply {
+                text = "\u2039"
+                textSize = 26f
+                setTextColor(android.graphics.Color.WHITE)
+                gravity = android.view.Gravity.CENTER
+                setBackgroundColor(0x99000000.toInt())
+                contentDescription = getString(R.string.video_player_back)
+                setOnClickListener { if (!locked) finish() }
+                val lp = FrameLayout.LayoutParams(dp(44), dp(44))
+                lp.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                lp.setMargins(dp(12), dp(12), 0, 0)
+                (controlsRoot as FrameLayout).addView(this, lp)
+            }
+        // keep the on-screen back button in sync with the real controller (hidden/shown together,
+        // including the controller's own auto-hide timer) whenever the screen isn't locked
+        view.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                if (!locked) backButton?.visibility = visibility
+            },
+        )
+
+        floatingUnlockButton =
+            ImageButton(this).apply {
+                setImageResource(R.drawable.ic_round_lock_24)
+                setColorFilter(android.graphics.Color.WHITE)
+                setBackgroundColor(0x99000000.toInt())
+                contentDescription = getString(R.string.unlock_screen)
+                visibility = android.view.View.GONE
+                setOnClickListener { setLocked(false) }
+                val size = dp(48)
+                val lp = FrameLayout.LayoutParams(size, size)
                 lp.gravity = android.view.Gravity.CENTER
                 (controlsRoot as FrameLayout).addView(this, lp)
             }
@@ -266,6 +305,7 @@ class VideoPlayerActivity : AppCompatActivity() {
         resizeModeIndex = (resizeModeIndex + 1) % RESIZE_MODES.size
         playerView?.resizeMode = RESIZE_MODES[resizeModeIndex]
         showFeedback(RESIZE_LABELS[resizeModeIndex])
+        hideFeedbackSoon()
     }
 
     private fun showSpeedMenu(anchor: android.view.View) {
@@ -276,6 +316,7 @@ class VideoPlayerActivity : AppCompatActivity() {
             speed = Float.fromBits(item.itemId)
             player?.playbackParameters = PlaybackParameters(speed)
             showFeedback("${if (speed == speed.toInt().toFloat()) speed.toInt() else speed}x")
+            hideFeedbackSoon()
             true
         }
         menu.show()
@@ -334,9 +375,20 @@ class VideoPlayerActivity : AppCompatActivity() {
         locked = value
         gestureView?.gesturesEnabled = !value
         playerView?.useController = !value
-        if (value) playerView?.hideController()
+        // the floating unlock button is never shown automatically here -- it only appears when the
+        // user taps the screen while locked (see toggleLockedOverlay); locking or unlocking just
+        // clears any pending show/hide state for it.
+        hideLockedOverlay()
+        if (value) {
+            playerView?.hideController()
+            backButton?.visibility = android.view.View.GONE
+        } else {
+            playerView?.showController()
+            backButton?.visibility = android.view.View.VISIBLE
+        }
         lockButton?.setImageResource(if (value) R.drawable.ic_round_lock_24 else R.drawable.ic_round_lock_open_24)
         showFeedback(getString(if (value) R.string.screen_locked else R.string.screen_unlocked))
+        hideFeedbackSoon()
     }
 
     @SuppressLint("MissingSuperCall")
@@ -449,10 +501,36 @@ class VideoPlayerActivity : AppCompatActivity() {
             }
 
             override fun onSingleTap() {
+                if (locked) {
+                    toggleLockedOverlay()
+                    return
+                }
                 val view = playerView ?: return
                 if (view.isControllerFullyVisible) view.hideController() else view.showController()
             }
         }
+
+    /** Tap-to-reveal while locked: shows the unlock button for a few seconds, or hides it early on a second tap. */
+    private fun toggleLockedOverlay() {
+        val btn = floatingUnlockButton ?: return
+        if (btn.visibility == android.view.View.VISIBLE) hideLockedOverlay() else showLockedOverlay()
+    }
+
+    private fun showLockedOverlay() {
+        val btn = floatingUnlockButton ?: return
+        lockOverlayHideRunnable?.let { btn.removeCallbacks(it) }
+        btn.visibility = android.view.View.VISIBLE
+        val r = Runnable { btn.visibility = android.view.View.GONE }
+        lockOverlayHideRunnable = r
+        btn.postDelayed(r, 2500)
+    }
+
+    private fun hideLockedOverlay() {
+        val btn = floatingUnlockButton ?: return
+        lockOverlayHideRunnable?.let { btn.removeCallbacks(it) }
+        lockOverlayHideRunnable = null
+        btn.visibility = android.view.View.GONE
+    }
 
     private fun formatSeekFeedback(
         targetMs: Long,
