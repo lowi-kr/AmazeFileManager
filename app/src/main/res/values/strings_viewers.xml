@@ -17,4 +17,6 @@
     <string name="picture_in_picture">Picture in picture</string>
     <string name="volume_percent">Volume %1$d%%</string>
     <string name="brightness_percent">Brightness %1$d%%</string>
+    <string name="video_player_back">Back</string>
+    <string name="unlock_screen">Unlock screen</string>
 </resources>
