@@ -264,6 +264,10 @@ dependencies {
     implementation 'org.zwobble.mammoth:mammoth:1.13.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
+    // PdfBox-Android: PDF text extraction powering in-app PDF search (PdfViewerActivity still
+    // renders pages itself via the platform PdfRenderer; this is used only for text/search).
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+
     implementation libs.gson
     implementation libs.amaze.trashBin
 }
