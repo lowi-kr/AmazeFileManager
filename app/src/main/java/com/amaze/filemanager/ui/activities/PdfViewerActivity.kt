@@ -34,10 +34,12 @@ import android.util.LruCache
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
+import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.amaze.filemanager.R
@@ -52,7 +54,7 @@ import java.util.concurrent.RejectedExecutionException
  * Minimal built-in PDF viewer based on the platform [PdfRenderer].
  *
  * Pages are fitted to the screen width and scroll vertically. Pinch or double tap to zoom; pages
- * are re-rendered at 2x resolution once zoomed in so text stays readable. Text search (via
+ * are re-rendered at higher resolution once zoomed in so text stays readable. Text search (via
  * [PdfTextSearch], backed by PdfBox-Android) is available from the toolbar; the renderer itself
  * is untouched for display. Password protected PDFs are not supported.
  */
@@ -102,6 +104,13 @@ class PdfViewerActivity : AppCompatActivity() {
         }
         val pageCount = renderer?.pageCount ?: 0
 
+        // Theme is NoActionBar (appCompatBlack). Host a Toolbar so the options menu
+        // (search / prev / next) is actually visible.
+        setContentView(R.layout.activity_pdf_viewer)
+        val toolbar = findViewById<Toolbar>(R.id.pdf_toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
         title = uri.lastPathSegment?.substringAfterLast('/') ?: getString(R.string.pdf_viewer)
         originalTitle = title
         searchEngine = PdfTextSearch(this, uri)
@@ -113,14 +122,27 @@ class PdfViewerActivity : AppCompatActivity() {
                 this.layoutManager = layoutManager
                 // Rendered bitmaps can be big, do not keep detached page views around
                 setItemViewCacheSize(0)
+                layoutParams =
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
             }
         pagesView = recycler
+        findViewById<FrameLayout>(R.id.pdf_pages_container).addView(recycler)
         val adapter = PageAdapter(recycler, pageCount)
         recycler.adapter = adapter
         recycler.onZoomSettled = { zoom ->
-            adapter.updateRenderScale(if (zoom > SHARP_RENDER_ZOOM) 2 else 1)
+            // Scale render resolution with zoom so text stays sharp at high magnification
+            val scale =
+                when {
+                    zoom >= 4f -> 4
+                    zoom >= 2f -> 3
+                    zoom > SHARP_RENDER_ZOOM -> 2
+                    else -> 1
+                }
+            adapter.updateRenderScale(scale)
         }
-        setContentView(recycler)
 
         savedInstanceState?.getInt(KEY_PAGE, 0)?.let {
             if (it in 1 until pageCount) layoutManager.scrollToPosition(it)
@@ -131,6 +153,8 @@ class PdfViewerActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_pdf_viewer, menu)
         val searchItem = menu.findItem(R.id.action_search)
         val searchView = searchItem.actionView as SearchView
+        searchView.queryHint = getString(R.string.pdf_search)
+        searchView.maxWidth = Integer.MAX_VALUE
         prevMatchItem = menu.findItem(R.id.action_search_previous)
         nextMatchItem = menu.findItem(R.id.action_search_next)
         prevMatchItem?.isVisible = false
@@ -138,7 +162,13 @@ class PdfViewerActivity : AppCompatActivity() {
         searchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String?): Boolean {
-                    jumpToMatch(1)
+                    // Jump to next match on keyboard search; if none yet, start a search
+                    if (currentMatches.isEmpty()) {
+                        scheduleSearch(query.orEmpty())
+                    } else {
+                        jumpToMatch(1)
+                    }
+                    searchView.clearFocus()
                     return true
                 }
 
@@ -163,6 +193,10 @@ class PdfViewerActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean =
         when (item.itemId) {
+            android.R.id.home -> {
+                finish()
+                true
+            }
             R.id.action_search_previous -> {
                 jumpToMatch(-1)
                 true
@@ -378,7 +412,7 @@ class PdfViewerActivity : AppCompatActivity() {
         // Height reserved for a page while it is still rendering, roughly A4 portrait
         private val placeholderHeight = (screenWidth * PLACEHOLDER_ASPECT).toInt()
 
-        // 1 = fit to width, 2 = double resolution, used while zoomed in. UI thread only.
+        // Render scale relative to screen width. UI thread only.
         private var renderScale = 1
 
         fun updateRenderScale(newScale: Int) {
@@ -421,8 +455,12 @@ class PdfViewerActivity : AppCompatActivity() {
                 return
             }
 
-            // Show the other resolution of this page, if we have it, until the new one is ready
-            val interim = pageCache.get(cacheKey(position, if (renderScale == 1) 2 else 1))
+            // Show any already-cached resolution of this page until the target scale is ready
+            val interim =
+                sequenceOf(4, 3, 2, 1)
+                    .filter { it != renderScale }
+                    .mapNotNull { pageCache.get(cacheKey(position, it)) }
+                    .firstOrNull()
             if (interim != null) {
                 image.setImageBitmap(withHighlightIfActive(interim, position))
                 image.minimumHeight = 0
@@ -483,11 +521,11 @@ class PdfViewerActivity : AppCompatActivity() {
         // The page cache may use 1/6 of the app heap
         private const val CACHE_FRACTION = 6
 
-        // Zoom above which pages are re-rendered at 2x
-        private const val SHARP_RENDER_ZOOM = 1.4f
+        // Zoom above which pages are re-rendered at higher resolution
+        private const val SHARP_RENDER_ZOOM = 1.25f
 
         // Upper bound on a rendered page width, to keep bitmaps from blowing the heap
-        private const val MAX_BITMAP_WIDTH = 3000
+        private const val MAX_BITMAP_WIDTH = 4096
 
         private const val SEARCH_DEBOUNCE_MS = 350L
 
