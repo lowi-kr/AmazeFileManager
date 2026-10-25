@@ -23,4 +23,10 @@
         app:showAsAction="ifRoom"
         android:visible="false" />
 
+    <item
+        android:id="@+id/action_goto_page"
+        android:title="@string/pdf_goto_page"
+        android:icon="@android:drawable/ic_menu_mylocation"
+        app:showAsAction="never" />
+
 </menu>
