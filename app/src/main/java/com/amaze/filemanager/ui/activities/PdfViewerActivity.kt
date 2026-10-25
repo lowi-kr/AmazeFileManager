@@ -30,13 +30,17 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.text.InputType
 import android.util.LruCache
 import android.view.Menu
 import android.view.MenuItem
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.appcompat.widget.Toolbar
@@ -51,26 +55,24 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
 /**
- * Minimal built-in PDF viewer based on the platform [PdfRenderer].
+ * Built-in PDF viewer based on the platform [PdfRenderer].
  *
  * Pages are fitted to the screen width and scroll vertically. Pinch or double tap to zoom; pages
  * are re-rendered at higher resolution once zoomed in so text stays readable. Text search (via
- * [PdfTextSearch], backed by PdfBox-Android) is available from the toolbar; the renderer itself
- * is untouched for display. Password protected PDFs are not supported.
+ * [PdfTextSearch], backed by PdfBox-Android) is available from the toolbar. Password protected
+ * PDFs are not supported.
  */
 class PdfViewerActivity : AppCompatActivity() {
     private val log: Logger = LoggerFactory.getLogger(PdfViewerActivity::class.java)
 
-    // PdfRenderer is not thread safe and allows only one open page at a time, so all access to
-    // renderer goes through renderLock
     private val renderLock = Any()
     private var descriptor: ParcelFileDescriptor? = null
     private var renderer: PdfRenderer? = null
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var pagesView: ZoomRecyclerView? = null
+    private var pageIndicator: TextView? = null
+    private var totalPages = 0
 
-    // Text search. searchEngine does its parsing on searchExecutor; results come back on the
-    // main thread via runOnUiThread.
     private var searchEngine: PdfTextSearch? = null
     private val searchExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val searchHandler = Handler(Looper.getMainLooper())
@@ -82,8 +84,8 @@ class PdfViewerActivity : AppCompatActivity() {
     private var prevMatchItem: MenuItem? = null
     private var nextMatchItem: MenuItem? = null
     private var originalTitle: CharSequence = ""
+    private val highlightedPages = HashSet<Int>()
 
-    // Rendered pages, keyed by page index and render scale. Sized by bytes, not entries.
     private val pageCache =
         object : LruCache<String, Bitmap>(
             (Runtime.getRuntime().maxMemory() / CACHE_FRACTION).coerceAtMost(Int.MAX_VALUE.toLong())
@@ -102,10 +104,8 @@ class PdfViewerActivity : AppCompatActivity() {
             finish()
             return
         }
-        val pageCount = renderer?.pageCount ?: 0
+        totalPages = renderer?.pageCount ?: 0
 
-        // Theme is NoActionBar (appCompatBlack). Host a Toolbar so the options menu
-        // (search / prev / next) is actually visible.
         setContentView(R.layout.activity_pdf_viewer)
         val toolbar = findViewById<Toolbar>(R.id.pdf_toolbar)
         setSupportActionBar(toolbar)
@@ -115,12 +115,14 @@ class PdfViewerActivity : AppCompatActivity() {
         originalTitle = title
         searchEngine = PdfTextSearch(this, uri)
 
+        pageIndicator = findViewById(R.id.pdf_page_indicator)
+        updatePageIndicator(0)
+
         val layoutManager = LinearLayoutManager(this)
         val recycler =
             ZoomRecyclerView(this).apply {
                 setBackgroundColor(Color.DKGRAY)
                 this.layoutManager = layoutManager
-                // Rendered bitmaps can be big, do not keep detached page views around
                 setItemViewCacheSize(0)
                 layoutParams =
                     FrameLayout.LayoutParams(
@@ -129,11 +131,10 @@ class PdfViewerActivity : AppCompatActivity() {
                     )
             }
         pagesView = recycler
-        findViewById<FrameLayout>(R.id.pdf_pages_container).addView(recycler)
-        val adapter = PageAdapter(recycler, pageCount)
+        findViewById<FrameLayout>(R.id.pdf_pages_container).addView(recycler, 0)
+        val adapter = PageAdapter(recycler, totalPages)
         recycler.adapter = adapter
         recycler.onZoomSettled = { zoom ->
-            // Scale render resolution with zoom so text stays sharp at high magnification
             val scale =
                 when {
                     zoom >= 4f -> 4
@@ -143,10 +144,32 @@ class PdfViewerActivity : AppCompatActivity() {
                 }
             adapter.updateRenderScale(scale)
         }
+        recycler.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(
+                    recyclerView: RecyclerView,
+                    dx: Int,
+                    dy: Int,
+                ) {
+                    val first = layoutManager.findFirstVisibleItemPosition()
+                    if (first >= 0) updatePageIndicator(first)
+                }
+            },
+        )
 
         savedInstanceState?.getInt(KEY_PAGE, 0)?.let {
-            if (it in 1 until pageCount) layoutManager.scrollToPosition(it)
+            if (it in 0 until totalPages) layoutManager.scrollToPosition(it)
         }
+    }
+
+    private fun updatePageIndicator(zeroBasedPage: Int) {
+        val tv = pageIndicator ?: return
+        if (totalPages <= 0) {
+            tv.visibility = android.view.View.GONE
+            return
+        }
+        tv.visibility = android.view.View.VISIBLE
+        tv.text = getString(R.string.pdf_page_of, zeroBasedPage + 1, totalPages)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -162,7 +185,6 @@ class PdfViewerActivity : AppCompatActivity() {
         searchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String?): Boolean {
-                    // Jump to next match on keyboard search; if none yet, start a search
                     if (currentMatches.isEmpty()) {
                         scheduleSearch(query.orEmpty())
                     } else {
@@ -205,8 +227,37 @@ class PdfViewerActivity : AppCompatActivity() {
                 jumpToMatch(1)
                 true
             }
+            R.id.action_goto_page -> {
+                showGoToPageDialog()
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
+
+    private fun showGoToPageDialog() {
+        if (totalPages <= 0) return
+        val input =
+            EditText(this).apply {
+                inputType = InputType.TYPE_CLASS_NUMBER
+                hint = getString(R.string.pdf_goto_page_hint, totalPages)
+                setPadding(48, 32, 48, 32)
+            }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.pdf_goto_page)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val n = input.text.toString().toIntOrNull()
+                if (n == null || n < 1 || n > totalPages) {
+                    Toast.makeText(this, R.string.pdf_goto_page_invalid, Toast.LENGTH_SHORT).show()
+                } else {
+                    (pagesView?.layoutManager as? LinearLayoutManager)
+                        ?.scrollToPositionWithOffset(n - 1, 0)
+                    updatePageIndicator(n - 1)
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
 
     private fun scheduleSearch(query: String) {
         lastQuery = query
@@ -218,7 +269,7 @@ class PdfViewerActivity : AppCompatActivity() {
 
     private fun runSearch(query: String) {
         searchEngine?.cancelSearch()
-        clearHighlight()
+        clearAllHighlights()
         currentMatches = emptyList()
         currentMatchIndex = -1
         prevMatchItem?.isVisible = false
@@ -229,21 +280,46 @@ class PdfViewerActivity : AppCompatActivity() {
         try {
             searchExecutor.execute {
                 val found = ArrayList<PdfSearchMatch>()
-                engine.search(query) { batch ->
-                    found.addAll(batch)
-                    val snapshot = found.toList()
-                    runOnUiThread {
-                        if (isDestroyed || query != lastQuery) return@runOnUiThread
-                        currentMatches = snapshot
-                        if (currentMatchIndex == -1) {
-                            currentMatchIndex = 0
-                            jumpToCurrentMatch()
+                engine.search(
+                    query,
+                    onBatch = { batch ->
+                        found.addAll(batch)
+                        val snapshot = found.toList()
+                        runOnUiThread {
+                            if (isDestroyed || query != lastQuery) return@runOnUiThread
+                            val previousActive = activeHighlightMatch
+                            currentMatches = snapshot
+                            if (currentMatchIndex == -1 && snapshot.isNotEmpty()) {
+                                currentMatchIndex = 0
+                                jumpToCurrentMatch()
+                            } else if (previousActive != null) {
+                                val idx = snapshot.indexOf(previousActive)
+                                currentMatchIndex =
+                                    if (idx >= 0) {
+                                        idx
+                                    } else {
+                                        currentMatchIndex.coerceIn(0, snapshot.lastIndex)
+                                    }
+                                refreshHighlightOverlays()
+                            }
+                            prevMatchItem?.isVisible = snapshot.isNotEmpty()
+                            nextMatchItem?.isVisible = snapshot.isNotEmpty()
+                            updateMatchCountTitle()
                         }
-                        prevMatchItem?.isVisible = true
-                        nextMatchItem?.isVisible = true
-                        updateMatchCountTitle()
-                    }
-                }
+                    },
+                    onFinished = {
+                        runOnUiThread {
+                            if (isDestroyed || query != lastQuery) return@runOnUiThread
+                            if (currentMatches.isEmpty()) {
+                                Toast.makeText(
+                                    this,
+                                    getString(R.string.pdf_search_no_results, query),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    },
+                )
             }
         } catch (e: RejectedExecutionException) {
             log.debug("search executor already shut down", e)
@@ -260,20 +336,33 @@ class PdfViewerActivity : AppCompatActivity() {
 
     private fun jumpToCurrentMatch() {
         val match = currentMatches.getOrNull(currentMatchIndex) ?: return
-        val previous = activeHighlightMatch
         activeHighlightMatch = match
-        val adapter = pagesView?.adapter as? PageAdapter
-        if (previous != null && previous.pageIndex != match.pageIndex) {
-            adapter?.notifyItemChanged(previous.pageIndex)
-        }
-        adapter?.notifyItemChanged(match.pageIndex)
-        (pagesView?.layoutManager as? LinearLayoutManager)?.scrollToPositionWithOffset(match.pageIndex, 0)
+        refreshHighlightOverlays()
+        (pagesView?.layoutManager as? LinearLayoutManager)
+            ?.scrollToPositionWithOffset(match.pageIndex, 0)
+        updatePageIndicator(match.pageIndex)
     }
 
-    private fun clearHighlight() {
-        val previous = activeHighlightMatch ?: return
+    private fun refreshHighlightOverlays() {
+        val adapter = pagesView?.adapter as? PageAdapter ?: return
+        val oldPages = HashSet(highlightedPages)
+        highlightedPages.clear()
+        for (m in currentMatches) highlightedPages.add(m.pageIndex)
+        activeHighlightMatch?.let { highlightedPages.add(it.pageIndex) }
+        val dirty = oldPages.union(highlightedPages)
+        for (page in dirty) {
+            if (page in 0 until totalPages) adapter.notifyItemChanged(page)
+        }
+    }
+
+    private fun clearAllHighlights() {
+        val adapter = pagesView?.adapter as? PageAdapter
+        val old = HashSet(highlightedPages)
+        highlightedPages.clear()
         activeHighlightMatch = null
-        (pagesView?.adapter as? PageAdapter)?.notifyItemChanged(previous.pageIndex)
+        for (page in old) {
+            if (page in 0 until totalPages) adapter?.notifyItemChanged(page)
+        }
     }
 
     private fun updateMatchCountTitle() {
@@ -335,7 +424,6 @@ class PdfViewerActivity : AppCompatActivity() {
                 true
             }
         } catch (e: SecurityException) {
-            // PdfRenderer throws SecurityException for password protected documents
             log.warn("cannot open password protected PDF", e)
             closeQuietly(pfd)
             Toast.makeText(this, R.string.pdf_password_protected, Toast.LENGTH_LONG).show()
@@ -361,9 +449,6 @@ class PdfViewerActivity : AppCompatActivity() {
         scale: Int,
     ): String = "$index@$scale"
 
-    /**
-     * Renders one page at baseWidth * scale pixels wide and caches it. Runs on the render thread.
-     */
     private fun renderPage(
         index: Int,
         scale: Int,
@@ -378,7 +463,6 @@ class PdfViewerActivity : AppCompatActivity() {
                     val height =
                         (targetWidth.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
                     val bitmap = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888)
-                    // PdfRenderer does not paint a background, transparent pages need white
                     bitmap.eraseColor(Color.WHITE)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     pageCache.put(cacheKey(index, scale), bitmap)
@@ -403,16 +487,18 @@ class PdfViewerActivity : AppCompatActivity() {
     ) : RecyclerView.Adapter<PageHolder>() {
         private val density = resources.displayMetrics.density
         private val screenWidth = resources.displayMetrics.widthPixels
-        private val highlightPaint =
+        private val matchPaint =
             Paint().apply {
-                color = HIGHLIGHT_COLOR
+                color = MATCH_HIGHLIGHT_COLOR
+                style = Paint.Style.FILL
+            }
+        private val activePaint =
+            Paint().apply {
+                color = ACTIVE_HIGHLIGHT_COLOR
                 style = Paint.Style.FILL
             }
 
-        // Height reserved for a page while it is still rendering, roughly A4 portrait
         private val placeholderHeight = (screenWidth * PLACEHOLDER_ASPECT).toInt()
-
-        // Render scale relative to screen width. UI thread only.
         private var renderScale = 1
 
         fun updateRenderScale(newScale: Int) {
@@ -450,19 +536,18 @@ class PdfViewerActivity : AppCompatActivity() {
 
             val exact = pageCache.get(cacheKey(position, renderScale))
             if (exact != null) {
-                image.setImageBitmap(withHighlightIfActive(exact, position))
+                image.setImageBitmap(withHighlights(exact, position))
                 image.minimumHeight = 0
                 return
             }
 
-            // Show any already-cached resolution of this page until the target scale is ready
             val interim =
                 sequenceOf(4, 3, 2, 1)
                     .filter { it != renderScale }
                     .mapNotNull { pageCache.get(cacheKey(position, it)) }
                     .firstOrNull()
             if (interim != null) {
-                image.setImageBitmap(withHighlightIfActive(interim, position))
+                image.setImageBitmap(withHighlights(interim, position))
                 image.minimumHeight = 0
             } else {
                 image.setImageDrawable(null)
@@ -476,7 +561,7 @@ class PdfViewerActivity : AppCompatActivity() {
                     val bitmap = renderPage(position, scale, baseWidth) ?: return@execute
                     runOnUiThread {
                         if (!isDestroyed && image.tag == position && renderScale == scale) {
-                            image.setImageBitmap(withHighlightIfActive(bitmap, position))
+                            image.setImageBitmap(withHighlights(bitmap, position))
                             image.minimumHeight = 0
                         }
                     }
@@ -486,24 +571,27 @@ class PdfViewerActivity : AppCompatActivity() {
             }
         }
 
-        /**
-         * If [position] is the page holding the current search match, returns a highlighted copy
-         * of [bitmap]; otherwise returns [bitmap] unchanged. The page's text was already
-         * extracted during the search scan, so this is a cheap cache lookup, safe on the UI
-         * thread.
-         */
-        private fun withHighlightIfActive(
+        private fun withHighlights(
             bitmap: Bitmap,
             position: Int,
         ): Bitmap {
-            val match = activeHighlightMatch ?: return bitmap
-            if (match.pageIndex != position) return bitmap
+            if (position !in highlightedPages) return bitmap
             val engine = searchEngine ?: return bitmap
-            val rects = engine.highlightRectsIfCached(match, bitmap.width, bitmap.height)
-            if (rects.isEmpty()) return bitmap
+            val pageMatches = currentMatches.filter { it.pageIndex == position }
+            if (pageMatches.isEmpty()) return bitmap
+
             val highlighted = bitmap.copy(Bitmap.Config.ARGB_8888, true)
             val canvas = Canvas(highlighted)
-            for (rect in rects) canvas.drawRect(rect, highlightPaint)
+            val active = activeHighlightMatch
+            for (match in pageMatches) {
+                if (match == active) continue
+                val rects = engine.highlightRectsIfCached(match, bitmap.width, bitmap.height)
+                for (rect in rects) canvas.drawRect(rect, matchPaint)
+            }
+            if (active != null && active.pageIndex == position) {
+                val rects = engine.highlightRectsIfCached(active, bitmap.width, bitmap.height)
+                for (rect in rects) canvas.drawRect(rect, activePaint)
+            }
             return highlighted
         }
 
@@ -517,19 +605,11 @@ class PdfViewerActivity : AppCompatActivity() {
         private const val KEY_PAGE = "pdf_page"
         private const val PAGE_GAP_DP = 8
         private const val PLACEHOLDER_ASPECT = 1.4f
-
-        // The page cache may use 1/6 of the app heap
         private const val CACHE_FRACTION = 6
-
-        // Zoom above which pages are re-rendered at higher resolution
         private const val SHARP_RENDER_ZOOM = 1.25f
-
-        // Upper bound on a rendered page width, to keep bitmaps from blowing the heap
         private const val MAX_BITMAP_WIDTH = 4096
-
         private const val SEARCH_DEBOUNCE_MS = 350L
-
-        // translucent amber highlight for search matches
-        private const val HIGHLIGHT_COLOR = 0x80FFEB3B.toInt()
+        private const val MATCH_HIGHLIGHT_COLOR = 0x55FFEB3B.toInt()
+        private const val ACTIVE_HIGHLIGHT_COLOR = 0xAAFFC107.toInt()
     }
 }
