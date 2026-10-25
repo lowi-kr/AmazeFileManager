@@ -19,4 +19,8 @@
     <string name="brightness_percent">Brightness %1$d%%</string>
     <string name="video_player_back">Back</string>
     <string name="unlock_screen">Unlock screen</string>
+
+    <string name="pdf_search">Search in document</string>
+    <string name="pdf_search_previous">Previous match</string>
+    <string name="pdf_search_next">Next match</string>
 </resources>
