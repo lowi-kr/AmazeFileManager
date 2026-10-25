@@ -151,19 +151,27 @@ class PdfTextSearch(
      * Scans every page for [query] (case-insensitive), calling [onBatch] on the calling thread
      * with newly found matches as each page finishes, in page order. A new call to [search]
      * invalidates any call still in progress, whose further [onBatch] calls become no-ops.
+     *
+     * After the last page, [onFinished] is invoked once (still on the calling thread) so the UI
+     * can show an empty-state toast when nothing matched.
      */
     @WorkerThread
     fun search(
         query: String,
         onBatch: (List<PdfSearchMatch>) -> Unit,
+        onFinished: (() -> Unit)? = null,
     ) {
         val myGeneration = generation.incrementAndGet()
-        if (query.isEmpty()) return
+        if (query.isEmpty()) {
+            onFinished?.invoke()
+            return
+        }
         val doc =
             try {
                 ensureOpen()
             } catch (e: Exception) {
                 log.warn("could not open PDF for search", e)
+                onFinished?.invoke()
                 return
             }
         val needle = query.lowercase()
@@ -184,9 +192,12 @@ class PdfTextSearch(
                 val at = haystack.indexOf(needle, from)
                 if (at < 0) break
                 matches.add(PdfSearchMatch(page, at, at + needle.length))
-                from = at + needle.length
+                from = at + 1 // allow overlapping matches (e.g. "aaa" in "aaaa")
             }
             if (matches.isNotEmpty()) onBatch(matches)
+        }
+        if (generation.get() == myGeneration) {
+            onFinished?.invoke()
         }
     }
 
@@ -199,8 +210,7 @@ class PdfTextSearch(
      * Highlight rectangles for [match], in pixel space for a page rendered at
      * [renderedWidthPx] by [renderedHeightPx]. Adjacent characters on the same line are merged
      * into one rectangle per line. May parse the page if it is not already cached, so this is
-     * only safe off the main thread; from the main thread use [highlightRectsIfCached] instead,
-     * which every real caller wants anyway since a match only exists for an already-scanned page.
+     * only safe off the main thread; from the main thread use [highlightRectsIfCached] instead.
      */
     @WorkerThread
     fun highlightRects(
@@ -220,8 +230,7 @@ class PdfTextSearch(
 
     /**
      * Same as [highlightRects], but never parses: if [match]'s page has not already been
-     * extracted (normally true the moment a match for it exists, since [search] just scanned it),
-     * this returns an empty list instead of blocking. Safe to call from the main thread.
+     * extracted, returns an empty list. Safe to call from the main thread.
      */
     fun highlightRectsIfCached(
         match: PdfSearchMatch,
@@ -232,6 +241,11 @@ class PdfTextSearch(
         return rectsFor(match, data, renderedWidthPx, renderedHeightPx)
     }
 
+    /**
+     * PdfBox [TextPosition] uses PDF user space (origin bottom-left, y up). Android bitmaps use
+     * top-left origin with y down. Convert and merge adjacent glyphs on the same line into one
+     * rect.
+     */
     private fun rectsFor(
         match: PdfSearchMatch,
         data: PageTextData,
@@ -241,16 +255,20 @@ class PdfTextSearch(
         if (data.pageWidthPt <= 0 || data.pageHeightPt <= 0) return emptyList()
         val scaleX = renderedWidthPx / data.pageWidthPt
         val scaleY = renderedHeightPx / data.pageHeightPt
+        val pageHeightPt = data.pageHeightPt
         val rects = ArrayList<RectF>()
         var current: RectF? = null
         val end = match.charEnd.coerceAtMost(data.positions.size)
         for (i in match.charStart until end) {
             val pos = data.positions.getOrNull(i) ?: continue
+            // PDF baseline y from bottom → top of glyph from top of page
             val left = pos.x * scaleX
-            val top = pos.y * scaleY
+            val glyphTopFromBottom = pos.y + pos.height
+            val top = (pageHeightPt - glyphTopFromBottom) * scaleY
             val right = left + pos.width * scaleX
-            val bottom = top + pos.height * scaleY
+            val bottom = (pageHeightPt - pos.y) * scaleY
             val c = current
+            // Same line if vertical ranges overlap substantially
             if (c != null && top < c.bottom && bottom > c.top) {
                 c.left = minOf(c.left, left)
                 c.top = minOf(c.top, top)
