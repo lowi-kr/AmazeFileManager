@@ -23,4 +23,9 @@
     <string name="pdf_search">Search in document</string>
     <string name="pdf_search_previous">Previous match</string>
     <string name="pdf_search_next">Next match</string>
+    <string name="pdf_search_no_results">No results for "%1$s"</string>
+    <string name="pdf_page_of">%1$d / %2$d</string>
+    <string name="pdf_goto_page">Go to page</string>
+    <string name="pdf_goto_page_hint">Page number (1–%1$d)</string>
+    <string name="pdf_goto_page_invalid">Enter a valid page number</string>
 </resources>
