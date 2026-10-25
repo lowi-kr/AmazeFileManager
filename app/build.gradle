@@ -266,7 +266,12 @@ dependencies {
 
     // PdfBox-Android: PDF text extraction powering in-app PDF search (PdfViewerActivity still
     // renders pages itself via the platform PdfRenderer; this is used only for text/search).
-    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    // BouncyCastle is excluded: PdfBox-Android pulls an older bcutil-jdk15to18 (for
+    // encrypted/signed PDFs, a feature this app doesn't use PdfBox for), which otherwise
+    // duplicate-class-conflicts with the project's own bcprov/bcpkix-jdk18on.
+    implementation('com.tom-roush:pdfbox-android:2.0.27.0') {
+        exclude group: 'org.bouncycastle'
+    }
 
     implementation libs.gson
     implementation libs.amaze.trashBin
