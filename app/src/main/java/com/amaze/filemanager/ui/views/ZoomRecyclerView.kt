@@ -149,7 +149,8 @@ class ZoomRecyclerView(context: Context) : RecyclerView(context) {
 
     companion object {
         private const val MIN_ZOOM = 1f
-        private const val MAX_ZOOM = 4f
-        private const val DOUBLE_TAP_ZOOM = 2.5f
+        // Higher ceiling so small text / detailed diagrams stay readable
+        private const val MAX_ZOOM = 8f
+        private const val DOUBLE_TAP_ZOOM = 3f
     }
 }
